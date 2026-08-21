@@ -119,7 +119,8 @@ export default function App() {
   // Ảnh của lượt phân tích hiện tại (dùng hiển thị minh họa kèm kết quả nếu user có upload)
   const [resultImage, setResultImage] = useState<string>('');
 
-  const backendUrl = 'http://localhost:3333';
+  // API base: dùng biến môi trường khi deploy (VITE_API_URL), mặc định backend local.
+  const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:3333';
 
   // Priorities options — tiêu chí phổ quát áp dụng cho MỌI loại sản phẩm (không gắn riêng điện tử)
   const priorityOptions = [

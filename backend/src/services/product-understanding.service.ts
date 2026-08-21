@@ -47,20 +47,38 @@ export class ProductUnderstandingService {
     // 4. Determine observed price & prepare Decision Engine inputs
     const currentPrice = userBudget && userBudget > 0 ? userBudget : researchData.marketPriceRange.median;
 
-    // Populate alternatives with productUrl and userFeedback
-    const alternativesToSave = normalized.isGenericCategory && normalized.recommendedModels && normalized.recommendedModels.length > 0
+    // Populate alternatives: dùng model đề xuất từ Gemini cho MỌI trường hợp (generic lẫn specific),
+// fallback 3 lựa chọn cùng tầm giá nếu Gemini không trả về (đảm bảo DoD: ít nhất 3 alternatives).
+    const modelAlternatives = normalized.recommendedModels && normalized.recommendedModels.length > 0
       ? normalized.recommendedModels.map(m => ({
           productName: m.productName,
           price: m.price,
           score: m.score,
           reason: `${m.reason}${m.userFeedback ? ' | ' + m.userFeedback : ''}${m.productUrl ? ' | URL: ' + m.productUrl : ''}${m.imageUrl ? ' | IMG: ' + m.imageUrl : ''}`,
         }))
+      : null;
+
+    const fmt = new Intl.NumberFormat('vi-VN');
+    const alternativesToSave = modelAlternatives?.length
+      ? modelAlternatives
       : [
           {
-            productName: `${normalized.brand} Phiên bản Tiêu chuẩn`,
+            productName: `${normalized.brand} — Phiên bản Tiêu chuẩn`,
             price: Math.round(researchData.marketPriceRange.min),
             score: 86,
-            reason: `Lựa chọn tiết kiệm chi phí, nằm ở ngưỡng sàn thị trường (${new Intl.NumberFormat('vi-VN').format(researchData.marketPriceRange.min)}đ)`,
+            reason: `Lựa chọn tiết kiệm chi phí, nằm ở ngưỡng sàn thị trường (${fmt.format(researchData.marketPriceRange.min)}đ).`,
+          },
+          {
+            productName: `${normalized.brand} — Phiên bản Cao cấp`,
+            price: Math.round(researchData.marketPriceRange.max),
+            score: 90,
+            reason: `Phiên bản đầy đủ tính năng nhất, phù hợp người dùng ưu tiên trải nghiệm (${fmt.format(researchData.marketPriceRange.max)}đ).`,
+          },
+          {
+            productName: `${normalized.brand} — Lựa chọn cân bằng cùng tầm giá`,
+            price: Math.round(researchData.marketPriceRange.median),
+            score: 83,
+            reason: `Điểm cân bằng tốt nhất giữa hiệu năng và chi phí tại mức trung vị thị trường (${fmt.format(researchData.marketPriceRange.median)}đ).`,
           },
         ];
 

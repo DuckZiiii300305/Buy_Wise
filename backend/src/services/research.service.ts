@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { env } from '../config/env.js';
+import { withTimeout } from '../utils/timeout.js';
 
 export interface WebEvidenceItem {
   sourceUrl: string;
@@ -181,13 +182,17 @@ export class ResearchService {
 
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const response = await client.models.generateContent({
-          model: env.GEMINI_MODEL,
-          contents: prompt,
-          config: {
-            tools: [{ googleSearch: {} }],
-          },
-        });
+        const response = await withTimeout(
+          client.models.generateContent({
+            model: env.GEMINI_MODEL,
+            contents: prompt,
+            config: {
+              tools: [{ googleSearch: {} }],
+            },
+          }),
+          30000,
+          'Gemini grounding',
+        );
 
         const metadata = (response as any)?.candidates?.[0]?.groundingMetadata ?? {};
         const chunks: any[] = Array.isArray(metadata.groundingChunks) ? metadata.groundingChunks : [];
