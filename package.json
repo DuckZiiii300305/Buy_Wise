@@ -1,0 +1,12 @@
+{
+  "name": "buywise-ai-raiser",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BuyWise - AI Purchase Decision Engine for AI Riser Vietnam 2026",
+  "scripts": {
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build"
+  }
+}

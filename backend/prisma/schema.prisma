@@ -1,0 +1,120 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id          String       @id @default(uuid())
+  email       String       @unique
+  name        String?
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  analyses    Analysis[]
+  preferences Preference[]
+
+  @@map("users")
+}
+
+model Product {
+  id             String     @id @default(uuid())
+  brand          String?
+  model          String?
+  category       String?
+  variant        String?
+  rawInput       String     @db.Text @map("raw_input")
+  normalizedJson Json?      @map("normalized_json")
+  createdAt      DateTime   @default(now()) @map("created_at")
+  updatedAt      DateTime   @updatedAt @map("updated_at")
+  analyses       Analysis[]
+
+  @@map("products")
+}
+
+enum VerdictType {
+  BUY
+  WAIT
+  SKIP
+  ALTERNATIVE
+}
+
+model Analysis {
+  id           String        @id @default(uuid())
+  userId       String?       @map("user_id")
+  productId    String        @map("product_id")
+  currentPrice Float?        @map("current_price")
+  verdict      VerdictType   @default(WAIT)
+  score        Float?
+  confidence   Float?
+  reasoning    Json?         @map("reasoning_json")
+  createdAt    DateTime      @default(now()) @map("created_at")
+
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  product      Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  evidences    Evidence[]
+  reviews      Review[]
+  alternatives Alternative[]
+
+  @@map("analyses")
+}
+
+model Evidence {
+  id          String   @id @default(uuid())
+  analysisId  String   @map("analysis_id")
+  sourceUrl   String   @db.Text @map("source_url")
+  title       String?  @db.Text
+  sourceType  String?  @map("source_type")
+  snippet     String?  @db.Text
+  relevance   Float?
+  publishedAt DateTime? @map("published_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  analysis    Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@map("evidence")
+}
+
+model Review {
+  id          String   @id @default(uuid())
+  analysisId  String   @map("analysis_id")
+  aspect      String
+  sentiment   String
+  evidenceIds Json?    @map("evidence_ids")
+  confidence  Float?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  analysis    Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@map("reviews")
+}
+
+model Alternative {
+  id          String   @id @default(uuid())
+  analysisId  String   @map("analysis_id")
+  productName String   @map("product_name")
+  price       Float?
+  score       Float?
+  reason      String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  analysis    Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@map("alternatives")
+}
+
+model Preference {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  budget      Float?
+  purpose     String?
+  weightsJson Json?    @map("weights_json")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("preferences")
+}
