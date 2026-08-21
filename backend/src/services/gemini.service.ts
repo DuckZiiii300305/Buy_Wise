@@ -10,6 +10,17 @@ export interface RecommendedModel {
   userFeedback?: string;
 }
 
+export interface ImageInput {
+  mimeType: string;
+  data: string; // base64, không kèm prefix "data:image/..."
+}
+
+export interface MarketPriceRange {
+  min: number;
+  median: number;
+  max: number;
+}
+
 export interface NormalizedProductResult {
   brand: string;
   model: string;
@@ -19,6 +30,7 @@ export interface NormalizedProductResult {
   isGenericCategory: boolean;
   specs: Record<string, string>;
   summary: string;
+  marketPriceRange?: MarketPriceRange;
   recommendedModels?: RecommendedModel[];
   domainAspects?: Array<{ aspect: string; sentiment: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL' }>;
 }
@@ -55,7 +67,11 @@ export class GeminiService {
   /**
    * Universal Product & Category Understanding Service with Direct Product URLs & Real User Feedback
    */
-  static async understandProduct(rawInput: string, userBudget?: number): Promise<NormalizedProductResult> {
+  static async understandProduct(
+    rawInput: string,
+    userBudget?: number,
+    image?: ImageInput,
+  ): Promise<NormalizedProductResult> {
     const isGeneric = this.checkIsGenericCategory(rawInput);
     const client = this.getClient();
 
@@ -74,6 +90,8 @@ CRITICAL REQUIREMENT FOR RECOMMENDED MODELS:
 If generic category search, recommend 3-4 EXACT SPECIFIC PRODUCT MODELS with full brand name and exact model series.
 Include direct product URL where available and real user feedback summary with star ratings!
 
+For marketPriceRange: give the CURRENT observed retail price range (VND) for this product/category in Vietnam. If uncertain, estimate from comparable products and lower your confidence. Never invent historical prices.
+
 Return ONLY a valid JSON object matching this exact schema (no markdown wrap):
 {
   "isGenericCategory": ${isGeneric},
@@ -82,6 +100,7 @@ Return ONLY a valid JSON object matching this exact schema (no markdown wrap):
   "category": "Extracted Domain & Category",
   "variant": "Phân khúc tiêu dùng",
   "confidence": 0.95,
+  "marketPriceRange": { "min": 0, "median": 0, "max": 0 },
   "specs": {
     "Tiêu chí chọn mua": "Độ an toàn, hiệu quả & độ bền trong phân khúc"
   },
@@ -102,9 +121,14 @@ Return ONLY a valid JSON object matching this exact schema (no markdown wrap):
   ]
 }`;
 
+        // Kèm ảnh vào prompt dưới dạng part multimodal (chỉ khi user upload ảnh)
+        const contents: any = image && image.data
+          ? [{ parts: [{ text: prompt }, { inlineData: { mimeType: image.mimeType, data: image.data } }] }]
+          : prompt;
+
         const response = await client.models.generateContent({
           model: env.GEMINI_MODEL,
-          contents: prompt,
+          contents,
           config: { responseMimeType: 'application/json' as const },
         });
 
@@ -123,6 +147,7 @@ Return ONLY a valid JSON object matching this exact schema (no markdown wrap):
           summary: parsed.summary || `BuyWise đã phân tích và tổng hợp thông tin tư vấn tiêu dùng cho "${rawInput}".`,
           recommendedModels: parsed.recommendedModels,
           domainAspects: parsed.domainAspects,
+          marketPriceRange: this.normalizeRange(parsed.marketPriceRange) || this.rangeFromModels(parsed.recommendedModels) || undefined,
         };
       } catch (err) {
         console.warn('Gemini API call fallback for universal all-domain understanding:', err);
@@ -130,7 +155,37 @@ Return ONLY a valid JSON object matching this exact schema (no markdown wrap):
     }
 
     // Universal Dynamic Fallback Engine with SPECIFIC MODEL NAMES & DIRECT URLS
-    return this.universalAllDomainFallback(rawInput, userBudget, isGeneric);
+    return this.ensureRange(this.universalAllDomainFallback(rawInput, userBudget, isGeneric));
+  }
+
+  // Chuẩn hoá giá: loại âm/NaN, kẹp median trong [min,max].
+  private static normalizeRange(r?: any): MarketPriceRange | null {
+    if (!r) return null;
+    const min = Number(r.min);
+    const med = Number(r.median);
+    const max = Number(r.max);
+    if (![min, med, max].every((n) => Number.isFinite(n) && n > 0)) return null;
+    const lo = Math.min(min, max);
+    const hi = Math.max(min, max);
+    const median = Math.min(hi, Math.max(lo, med));
+    return { min: Math.round(lo), median: Math.round(median), max: Math.round(hi) };
+  }
+
+  // Suy range từ giá các model đề xuất (fallback không có key Gemini).
+  private static rangeFromModels(models?: RecommendedModel[]): MarketPriceRange | null {
+    const prices = (models ?? [])
+      .map((m) => m.price)
+      .filter((p) => Number.isFinite(p) && p > 0);
+    if (prices.length === 0) return null;
+    const sorted = [...prices].sort((a, b) => a - b);
+    return { min: sorted[0], median: sorted[Math.floor(sorted.length / 2)], max: sorted[sorted.length - 1] };
+  }
+
+  private static ensureRange(result: NormalizedProductResult): NormalizedProductResult {
+    if (!result.marketPriceRange) {
+      result.marketPriceRange = this.rangeFromModels(result.recommendedModels) ?? undefined;
+    }
+    return result;
   }
 
   /**

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import {
   ShoppingBag, Search, Sparkles, CheckCircle2, AlertTriangle, Clock,
   ArrowRight, Tag, ShieldCheck, Scale, History, RefreshCw, ThumbsUp, ThumbsDown,
-  ChevronRight, ExternalLink, Zap, Sliders, DollarSign, Layers
+  ChevronRight, ExternalLink, Zap, Sliders, DollarSign, Layers, ImagePlus, X
 } from 'lucide-react';
 
 interface AnalysisData {
@@ -25,7 +25,15 @@ interface AnalysisData {
     cons: string[];
     hiddenConcerns?: string[];
     priceAssessment?: 'GOOD' | 'FAIR' | 'HIGH';
+    priceAssessmentNote?: string;
     marketRange?: { min: number; median: number; max: number };
+    isGenericCategory?: boolean;
+    scoreBreakdown?: {
+      weights: { quality: number; userFit: number; reviewConfidence: number; priceValue: number };
+      components: { quality: number; userFit: number; reviewConfidence: number; priceValue: number };
+      finalScore: number;
+    };
+    counterReasons?: string[];
   };
   evidences: Array<{
     id: string;
@@ -62,6 +70,11 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [researchStep, setResearchStep] = useState<string>('');
 
+  // Image upload state (M01): base64 + MIME type của ảnh sản phẩm (không kèm prefix)
+  const [imageBase64, setImageBase64] = useState<string>('');
+  const [imageMimeType, setImageMimeType] = useState<string>('');
+  const [imagePreview, setImagePreview] = useState<string>('');
+
   const backendUrl = 'http://localhost:3333';
 
   // Priorities options
@@ -80,6 +93,36 @@ export default function App() {
     } else {
       setSelectedPriorities([...selectedPriorities, item]);
     }
+  };
+
+  // Đọc ảnh → base64 thuần (bỏ prefix) để gửi lên backend (M01, giới hạn 2.5MB).
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Vui lòng chọn file ảnh (PNG/JPEG/WebP...).');
+      return;
+    }
+    if (file.size > 2.5 * 1024 * 1024) {
+      alert('Ảnh vượt quá 2.5MB. Vui lòng chọn ảnh nhỏ hơn.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result);
+      const comma = dataUrl.indexOf(',');
+      const base64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+      setImagePreview(dataUrl);
+      setImageBase64(base64);
+      setImageMimeType(file.type);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const clearImage = () => {
+    setImagePreview('');
+    setImageBase64('');
+    setImageMimeType('');
   };
 
   // Fetch analysis history from DB
@@ -120,6 +163,8 @@ export default function App() {
         budget,
         purpose,
         priorities: selectedPriorities,
+        imageBase64: imageBase64 || undefined,
+        imageMimeType: imageMimeType || undefined,
       }),
     })
       .then(res => res.json())
@@ -359,6 +404,46 @@ export default function App() {
                     />
                     <Search className="w-5 h-5 text-slate-500 absolute left-4 top-4" />
                   </div>
+                </div>
+
+                {/* Image Upload (M01) - optional, hỗ trợ nhận diện sản phẩm qua ảnh */}
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold text-slate-200 mb-1 flex items-center space-x-1.5">
+                    <ImagePlus className="w-4 h-4 text-indigo-400" />
+                    <span>Hình ảnh sản phẩm (tùy chọn)</span>
+                  </label>
+                  {imagePreview ? (
+                    <div className="flex items-start gap-4 bg-slate-950/60 border border-slate-800 rounded-2xl p-3">
+                      <img
+                        src={imagePreview}
+                        alt="Ảnh sản phẩm đã chọn"
+                        className="w-24 h-24 object-cover rounded-xl border border-slate-700"
+                      />
+                      <div className="flex-1 text-xs text-slate-400 space-y-1 pt-1">
+                        <p className="text-slate-300 font-medium">Ảnh đã sẵn sàng — Gemini sẽ kết hợp ảnh + mô tả để nhận diện chính xác.</p>
+                        <p className="text-slate-500">Định dạng: {imageMimeType || 'image/*'}</p>
+                        <button
+                          type="button"
+                          onClick={clearImage}
+                          className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-300 hover:bg-rose-500/20 text-xs font-semibold transition"
+                        >
+                          <X className="w-3 h-3" />
+                          <span>Gỡ ảnh</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="flex items-center justify-center gap-3 bg-slate-950/60 border border-dashed border-slate-700 rounded-2xl p-4 cursor-pointer hover:border-blue-500/60 transition text-xs text-slate-400">
+                      <ImagePlus className="w-5 h-5 text-slate-500" />
+                      <span>Click để đăng ảnh sản phẩm (PNG/JPEG, tối đa 2.5MB)</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageChange}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -658,6 +743,81 @@ export default function App() {
                   </div>
                 )}
 
+                {/* Score Breakdown & Counter-Reasons (Decision Engine transparency) */}
+                {currentAnalysis.reasoning.scoreBreakdown && (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Weights & Component Scores */}
+                    <div className="lg:col-span-2 bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-bold text-sm text-slate-200 flex items-center space-x-2">
+                          <Sliders className="w-4 h-4 text-indigo-400" />
+                          <span>Điểm thành phần & Trọng số quyết định</span>
+                        </h3>
+                        <span className="text-xs text-slate-400">Tổng điểm: <strong className="text-blue-400 text-base">{currentAnalysis.reasoning.scoreBreakdown.finalScore}/100</strong></span>
+                      </div>
+
+                      {(() => {
+                        const b = currentAnalysis.reasoning.scoreBreakdown!;
+                        const rows = [
+                          { key: 'quality', label: 'Chất lượng sản phẩm', color: 'from-blue-500 to-emerald-500' },
+                          { key: 'userFit', label: 'Độ khớp nhu cầu', color: 'from-indigo-500 to-blue-500' },
+                          { key: 'reviewConfidence', label: 'Độ tin cậy đánh giá', color: 'from-teal-500 to-emerald-500' },
+                          { key: 'priceValue', label: 'Giá trị so với thị trường', color: 'from-amber-500 to-emerald-500' },
+                        ] as const;
+                        return (
+                          <div className="space-y-4">
+                            {rows.map((row) => {
+                              const comp = b.components[row.key] ?? 0;
+                              const weight = Math.round((b.weights[row.key] ?? 0) * 100);
+                              return (
+                                <div key={row.key} className="space-y-1.5">
+                                  <div className="flex items-center justify-between text-xs">
+                                    <span className="text-slate-300 font-medium">{row.label}</span>
+                                    <span className="text-slate-400">
+                                      <strong className="text-emerald-400">{comp}</strong>/100
+                                      <span className="ml-2 text-slate-500">• trọng số {weight}%</span>
+                                    </span>
+                                  </div>
+                                  <div className="h-2.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                                    <div
+                                      className={`h-full bg-gradient-to-r ${row.color} opacity-90 transition-all`}
+                                      style={{ width: `${Math.max(0, Math.min(100, comp))}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
+                        Công thức: Điểm = 0.35×Chất lượng + 0.25×Độ khớp + 0.20×Đánh giá + 0.20×Giá trị (trọng số dịch chuyển theo ưu tiên bạn chọn, sau đó chuẩn hoá về 100%).
+                      </p>
+                    </div>
+
+                    {/* Counter-Reasons */}
+                    <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-3">
+                      <h3 className="font-bold text-sm text-slate-200 flex items-center space-x-2">
+                        <Scale className="w-4 h-4 text-amber-400" />
+                        <span>Lý do phản biện (Counter-Reasons)</span>
+                      </h3>
+                      {currentAnalysis.reasoning.counterReasons && currentAnalysis.reasoning.counterReasons.length > 0 ? (
+                        <ul className="space-y-2.5">
+                          {currentAnalysis.reasoning.counterReasons.map((r, i) => (
+                            <li key={i} className="flex items-start space-x-2 text-xs text-slate-300 leading-relaxed bg-slate-950/70 border border-slate-800 p-2.5 rounded-xl">
+                              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 mt-0.5" />
+                              <span>{r}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-xs text-slate-500">Không có lý do phản biện.</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* Pros & Cons & Hidden Concerns Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Pros Card */}
@@ -772,34 +932,68 @@ export default function App() {
             </div>
 
             {currentAnalysis && currentAnalysis.alternatives.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Main Product */}
-                <div className="bg-slate-900/90 border border-blue-500/40 rounded-2xl p-6 space-y-4 relative">
-                  <span className="absolute top-4 right-4 bg-blue-500/20 text-blue-400 text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full border border-blue-500/30">
-                    Đang xem
-                  </span>
-                  <h3 className="font-extrabold text-lg text-white">{currentAnalysis.product.model}</h3>
-                  <div className="text-sm font-semibold text-emerald-400">{formatPrice(currentAnalysis.currentPrice)}</div>
-                  <div className="text-xs text-slate-300 bg-slate-950 p-3 rounded-xl border border-slate-800">
-                    {currentAnalysis.reasoning.summary}
-                  </div>
+              <div className="bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs min-w-[720px]">
+                    <thead>
+                      <tr className="bg-slate-950/80 border-b border-slate-800">
+                        <th className="px-4 py-3 font-bold text-slate-300 whitespace-nowrap">Tiêu chí so sánh</th>
+                        <th className="px-4 py-3 font-bold text-blue-400 uppercase whitespace-nowrap">Sản phẩm đang xem</th>
+                        {currentAnalysis.alternatives.map((alt, idx) => (
+                          <th key={alt.id} className="px-4 py-3 font-bold text-indigo-300 whitespace-nowrap">
+                            Đề xuất thay thế #{idx + 1}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/70">
+                      <tr className="bg-slate-900/40">
+                        <td className="px-4 py-3 font-semibold text-slate-400">Sản phẩm / Model</td>
+                        <td className="px-4 py-3 font-bold text-white">{currentAnalysis.product.model}</td>
+                        {currentAnalysis.alternatives.map((alt) => (
+                          <td key={alt.id} className="px-4 py-3 font-semibold text-slate-200">{alt.productName}</td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-3 font-semibold text-slate-400">Giá tham khảo</td>
+                        <td className="px-4 py-3 font-bold text-emerald-400">{formatPrice(currentAnalysis.currentPrice)}</td>
+                        {currentAnalysis.alternatives.map((alt) => (
+                          <td key={alt.id} className="px-4 py-3 font-semibold text-emerald-400">{formatPrice(alt.price)}</td>
+                        ))}
+                      </tr>
+                      <tr className="bg-slate-900/40">
+                        <td className="px-4 py-3 font-semibold text-slate-400">Điểm tư vấn</td>
+                        <td className="px-4 py-3">
+                          <span className="font-extrabold text-blue-400">{currentAnalysis.score}/100</span>
+                        </td>
+                        {currentAnalysis.alternatives.map((alt) => (
+                          <td key={alt.id} className="px-4 py-3">
+                            <span className="font-bold text-indigo-400">{alt.score}/100</span>
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td className="px-4 py-3 font-semibold text-slate-400">Kết luận</td>
+                        <td className="px-4 py-3">{getVerdictBadge(currentAnalysis.verdict)}</td>
+                        {currentAnalysis.alternatives.map((alt) => (
+                          <td key={alt.id} className="px-4 py-3">
+                            <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-indigo-500/15 border border-indigo-500/30 text-indigo-300 font-bold text-[10px]">
+                              <RefreshCw className="w-3 h-3" />
+                              <span>Mẫu thay thế</span>
+                            </span>
+                          </td>
+                        ))}
+                      </tr>
+                      <tr className="bg-slate-900/40">
+                        <td className="px-4 py-3 font-semibold text-slate-400 align-top">Lý do gợi ý</td>
+                        <td className="px-4 py-3 text-slate-300 leading-relaxed align-top">{currentAnalysis.reasoning.summary}</td>
+                        {currentAnalysis.alternatives.map((alt) => (
+                          <td key={alt.id} className="px-4 py-3 text-slate-300 leading-relaxed align-top">{alt.reason}</td>
+                        ))}
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
-
-                {/* Alternatives list */}
-                {currentAnalysis.alternatives.map((alt) => (
-                  <div key={alt.id} className="bg-slate-900/60 border border-slate-800 hover:border-indigo-500/40 rounded-2xl p-6 space-y-4 transition">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-extrabold text-base text-white">{alt.productName}</h3>
-                      <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
-                        Score: {alt.score}/100
-                      </span>
-                    </div>
-                    <div className="text-sm font-semibold text-emerald-400">{formatPrice(alt.price)}</div>
-                    <p className="text-xs text-slate-300 leading-relaxed bg-slate-950/80 p-3 rounded-xl border border-slate-800">
-                      💡 <strong>Lý do gợi ý:</strong> {alt.reason}
-                    </p>
-                  </div>
-                ))}
               </div>
             ) : (
               <div className="text-center py-16 bg-slate-900/40 border border-slate-800 rounded-3xl space-y-3">

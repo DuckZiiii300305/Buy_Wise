@@ -123,7 +123,8 @@ export class ResearchService {
     brand: string,
     model: string,
     category: string,
-    userPrice?: number
+    userPrice?: number,
+    priceRange?: { min: number; median: number; max: number }
   ): Promise<ResearchPlanResult> {
     const client = this.getClient();
     const queryTerm = `${brand} ${model}`.trim();
@@ -135,8 +136,8 @@ export class ResearchService {
       `sản phẩm thay thế cùng tầm giá ${queryTerm}`,
     ];
 
-    // Get independent market price range
-    const marketPriceRange = this.getIndependentMarketPrice(brand, model, category);
+    // Market price range: ưu tiên range Gemini suy ra cho MỌI danh mục, fallback bảng giá độc lập.
+    const marketPriceRange = priceRange?.min && priceRange?.max ? priceRange : this.getIndependentMarketPrice(brand, model, category);
 
     // Evaluate user price against independent market range
     const priceEval = this.evaluatePrice(userPrice, marketPriceRange.min, marketPriceRange.median, marketPriceRange.max);

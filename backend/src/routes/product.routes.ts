@@ -54,11 +54,16 @@ productRouter.post('/', async (req, res) => {
 // POST /api/products/understand - Analyze & understand product using Gemini AI
 productRouter.post('/understand', validateUnderstand, async (req, res) => {
   try {
-    const { rawInput, budget, purpose, priorities } = req.body;
+    const { rawInput, budget, purpose, priorities, imageBase64, imageMimeType } = req.body;
 
     const parsedBudget = budget ? parseFloat(String(budget).replace(/[^0-9.]/g, '')) : undefined;
     const parsedPriorities = Array.isArray(priorities) ? priorities.map(String).filter(Boolean) : [];
-    const result = await ProductUnderstandingService.processProductInput(rawInput, parsedBudget, purpose, parsedPriorities);
+    const image = imageBase64
+      ? { mimeType: String(imageMimeType), data: String(imageBase64) }
+      : undefined;
+    const result = await ProductUnderstandingService.processProductInput(
+      rawInput, parsedBudget, purpose, parsedPriorities, image,
+    );
 
     res.status(200).json({ success: true, data: result });
   } catch (error) {

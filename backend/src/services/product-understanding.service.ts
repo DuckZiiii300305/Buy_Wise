@@ -1,6 +1,6 @@
 import { ProductService } from './product.service.js';
 import { AnalysisService } from './analysis.service.js';
-import { GeminiService } from './gemini.service.js';
+import { GeminiService, ImageInput } from './gemini.service.js';
 import { ResearchService } from './research.service.js';
 import { DecisionService, ReviewSignal } from './decision.service.js';
 
@@ -13,16 +13,18 @@ export class ProductUnderstandingService {
     userBudget?: number,
     userPurpose?: string,
     priorities: string[] = [],
+    image?: ImageInput,
   ) {
-    // 1. Understand product / category dynamically across ALL domains
-    const normalized = await GeminiService.understandProduct(rawInput, userBudget);
+    // 1. Understand product / category dynamically across ALL domains (kèm ảnh nếu có)
+    const normalized = await GeminiService.understandProduct(rawInput, userBudget, image);
 
-    // 2. Conduct grounded web research
+    // 2. Conduct grounded web research (dùng range giá Gemini suy ra — hỗ trợ mọi danh mục)
     const researchData = await ResearchService.conductResearch(
       normalized.brand,
       normalized.model,
       normalized.category,
-      userBudget
+      userBudget,
+      normalized.marketPriceRange,
     );
 
     // 3. Save Product entry in MySQL DB
@@ -122,6 +124,7 @@ export class ProductUnderstandingService {
         ],
         priceAssessment: researchData.priceAssessment,
         priceAssessmentNote: researchData.priceAssessmentNote,
+        marketRange: researchData.marketPriceRange,
         isGenericCategory: normalized.isGenericCategory,
         scoreBreakdown: decision.breakdown,
         counterReasons: decision.counterReasons,
