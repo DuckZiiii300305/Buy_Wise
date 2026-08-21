@@ -18,6 +18,10 @@ interface AnalysisData {
     category: string;
     variant: string;
     rawInput: string;
+    normalizedJson?: {
+      imageUrl?: string;
+      [key: string]: unknown;
+    };
   };
   reasoning: {
     summary: string;
@@ -58,12 +62,50 @@ interface AnalysisData {
   }>;
 }
 
+// Ảnh minh họa: tự ẩn nếu link hỏng (hallucination / hotlink bị chặn) → hiện placeholder.
+function ProductImage({ src, alt, className }: { src?: string; alt: string; className?: string }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) {
+    return (
+      <div className={`${className ?? ''} flex items-center justify-center bg-slate-950/80 border border-slate-800 text-slate-600`}>
+        <ImagePlus className="w-8 h-8" />
+      </div>
+    );
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      className={className}
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+// Tách các trường đóng gói trong `reason` của alternative (URL / IMG / feedback).
+function parseAltReason(reason: string) {
+  const tokens = (reason || '').split(' | ');
+  let displayReason = tokens[0] || '';
+  let directUrl = '';
+  let feedbackText = '';
+  let imageUrl = '';
+  for (const t of tokens.slice(1)) {
+    if (t.startsWith('URL: ')) directUrl = t.slice(5).trim();
+    else if (t.startsWith('IMG: ')) imageUrl = t.slice(5).trim();
+    else if (t.startsWith('⭐')) feedbackText = t.trim();
+    else if (t.trim()) displayReason += ' | ' + t;
+  }
+  return { displayReason, directUrl, feedbackText, imageUrl };
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'analyze' | 'verdict' | 'compare' | 'history'>('analyze');
   const [productInput, setProductInput] = useState('');
   const [budget, setBudget] = useState('30,000,000');
   const [purpose, setPurpose] = useState('Sử dụng làm việc & giải trí hàng ngày');
-  const [selectedPriorities, setSelectedPriorities] = useState<string[]>(['Chất lượng cao', 'Bảo hành uy tín']);
+  const [selectedPriorities, setSelectedPriorities] = useState<string[]>(['Chất lượng cao', 'Độ bền cao']);
   
   const [history, setHistory] = useState<AnalysisData[]>([]);
   const [currentAnalysis, setCurrentAnalysis] = useState<AnalysisData | null>(null);
@@ -74,17 +116,19 @@ export default function App() {
   const [imageBase64, setImageBase64] = useState<string>('');
   const [imageMimeType, setImageMimeType] = useState<string>('');
   const [imagePreview, setImagePreview] = useState<string>('');
+  // Ảnh của lượt phân tích hiện tại (dùng hiển thị minh họa kèm kết quả nếu user có upload)
+  const [resultImage, setResultImage] = useState<string>('');
 
   const backendUrl = 'http://localhost:3333';
 
-  // Priorities options
+  // Priorities options — tiêu chí phổ quát áp dụng cho MỌI loại sản phẩm (không gắn riêng điện tử)
   const priorityOptions = [
     'Giá tốt nhất',
     'Chất lượng cao',
-    'Bảo hành uy tín',
-    'Thời lượng pin lâu',
-    'Thương hiệu hàng đầu',
     'Độ bền cao',
+    'Thương hiệu uy tín',
+    'Bảo hành tốt',
+    'An toàn & lành tính',
   ];
 
   const togglePriority = (item: string) => {
@@ -149,6 +193,7 @@ export default function App() {
     if (!productInput.trim()) return;
 
     setLoading(true);
+    setResultImage(imagePreview); // giữ ảnh upload (nếu có) để hiển thị kèm kết quả
     setResearchStep('🔍 Gemini AI đang nhận diện tên & biến thể sản phẩm...');
 
     setTimeout(() => {
@@ -176,6 +221,7 @@ export default function App() {
           fetchHistory();
           setActiveTab('verdict');
         } else if (history.length > 0) {
+          setResultImage('');
           setCurrentAnalysis(history[0]);
           setActiveTab('verdict');
         }
@@ -185,6 +231,7 @@ export default function App() {
         setLoading(false);
         setResearchStep('');
         if (history.length > 0) {
+          setResultImage('');
           setCurrentAnalysis(history[0]);
           setActiveTab('verdict');
         }
@@ -593,15 +640,24 @@ export default function App() {
                       </p>
                     </div>
 
-                    {/* Overall Score Badge */}
-                    <div className="bg-slate-950/80 border border-slate-800 p-5 rounded-2xl text-center space-y-1 min-w-[140px]">
-                      <span className="text-xs text-slate-400 font-semibold block">ĐIỂM TƯ VẤN</span>
-                      <span className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
-                        {currentAnalysis.score}<span className="text-sm text-slate-500">/100</span>
-                      </span>
-                      <span className="text-[11px] text-emerald-400 block font-medium">
-                        Độ tin cậy {(currentAnalysis.confidence * 100).toFixed(0)}%
-                      </span>
+                    {/* Product Image + Overall Score Badge */}
+                    <div className="flex flex-col items-center gap-3">
+                      {(resultImage || currentAnalysis.product.normalizedJson?.imageUrl) && (
+                        <ProductImage
+                          src={resultImage || currentAnalysis.product.normalizedJson?.imageUrl}
+                          alt={currentAnalysis.product.model}
+                          className="w-28 h-28 rounded-2xl object-cover border border-slate-700 shadow-lg"
+                        />
+                      )}
+                      <div className="bg-slate-950/80 border border-slate-800 p-5 rounded-2xl text-center space-y-1 min-w-[140px]">
+                        <span className="text-xs text-slate-400 font-semibold block">ĐIỂM TƯ VẤN</span>
+                        <span className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
+                          {currentAnalysis.score}<span className="text-sm text-slate-500">/100</span>
+                        </span>
+                        <span className="text-[11px] text-emerald-400 block font-medium">
+                          Độ tin cậy {(currentAnalysis.confidence * 100).toFixed(0)}%
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -621,21 +677,8 @@ export default function App() {
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                       {currentAnalysis.alternatives.map((alt, idx) => {
-                        // Extract productUrl & userFeedback if encoded in reason string
-                        let displayReason = alt.reason || '';
-                        let directUrl = '';
-                        let feedbackText = '';
-
-                        if (displayReason.includes(' | URL: ')) {
-                          const parts = displayReason.split(' | URL: ');
-                          directUrl = parts[1]?.trim() || '';
-                          displayReason = parts[0] || '';
-                        }
-                        if (displayReason.includes(' | ⭐ ')) {
-                          const parts = displayReason.split(' | ⭐ ');
-                          feedbackText = '⭐ ' + parts[1]?.trim();
-                          displayReason = parts[0] || '';
-                        }
+                        // Extract productUrl, userFeedback & imageUrl encoded in reason string
+                        const { displayReason, directUrl, feedbackText, imageUrl } = parseAltReason(alt.reason || '');
 
                         return (
                           <div
@@ -651,6 +694,15 @@ export default function App() {
                                   Score: {alt.score}/100
                                 </span>
                               </div>
+
+                              {/* Ảnh minh họa sản phẩm */}
+                              {imageUrl && (
+                                <ProductImage
+                                  src={imageUrl}
+                                  alt={alt.productName}
+                                  className="w-full h-36 object-cover rounded-xl border border-slate-800"
+                                />
+                              )}
 
                               <h3 className="font-extrabold text-base text-white group-hover:text-blue-300 transition leading-snug">
                                 {alt.productName}
@@ -955,6 +1007,25 @@ export default function App() {
                         ))}
                       </tr>
                       <tr>
+                        <td className="px-4 py-3 font-semibold text-slate-400 align-top">Hình ảnh</td>
+                        <td className="px-4 py-3 align-top">
+                          <ProductImage
+                            src={currentAnalysis.product.normalizedJson?.imageUrl}
+                            alt={currentAnalysis.product.model}
+                            className="w-20 h-20 object-cover rounded-lg border border-slate-700"
+                          />
+                        </td>
+                        {currentAnalysis.alternatives.map((alt) => (
+                          <td key={alt.id} className="px-4 py-3 align-top">
+                            <ProductImage
+                              src={parseAltReason(alt.reason || '').imageUrl}
+                              alt={alt.productName}
+                              className="w-20 h-20 object-cover rounded-lg border border-slate-700"
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
                         <td className="px-4 py-3 font-semibold text-slate-400">Giá tham khảo</td>
                         <td className="px-4 py-3 font-bold text-emerald-400">{formatPrice(currentAnalysis.currentPrice)}</td>
                         {currentAnalysis.alternatives.map((alt) => (
@@ -1027,6 +1098,7 @@ export default function App() {
                 <div
                   key={item.id}
                   onClick={() => {
+                    setResultImage('');
                     setCurrentAnalysis(item);
                     setActiveTab('verdict');
                   }}

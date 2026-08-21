@@ -40,6 +40,7 @@ export class ProductUnderstandingService {
         summary: normalized.summary,
         queries: researchData.queries,
         isGenericCategory: normalized.isGenericCategory,
+        imageUrl: normalized.imageUrl,
       },
     });
 
@@ -52,7 +53,7 @@ export class ProductUnderstandingService {
           productName: m.productName,
           price: m.price,
           score: m.score,
-          reason: `${m.reason}${m.userFeedback ? ' | ' + m.userFeedback : ''}${m.productUrl ? ' | URL: ' + m.productUrl : ''}`,
+          reason: `${m.reason}${m.userFeedback ? ' | ' + m.userFeedback : ''}${m.productUrl ? ' | URL: ' + m.productUrl : ''}${m.imageUrl ? ' | IMG: ' + m.imageUrl : ''}`,
         }))
       : [
           {

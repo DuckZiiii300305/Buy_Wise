@@ -246,7 +246,9 @@ export class ResearchService {
   }
 
   /**
-   * Generates DIRECT product detail & review URLs based on domain (CellphoneS, Điện Máy Xanh, Hasaki, Tinh Tế, VOZ...)
+   * Generates DIRECT, product-specific marketplace & review search URLs for ANY category.
+   * Links embed the exact product name so they resolve to the right item on Shopee/Tiki/Lazada
+   * (universal e-commerce platforms covering ALL domains), instead of a fixed electronics shop.
    */
   private static generateDirectEvidenceLinks(
     brand: string,
@@ -254,84 +256,38 @@ export class ResearchService {
     category: string,
     marketPriceRange: { min: number; median: number; max: number }
   ): WebEvidenceItem[] {
-    const lower = `${brand} ${model} ${category}`.toLowerCase();
+    const queryTerm = `${brand} ${model}`.trim();
+    const q = encodeURIComponent(queryTerm);
+    const price = `${new Intl.NumberFormat('vi-VN').format(marketPriceRange.min)}đ - ${new Intl.NumberFormat('vi-VN').format(marketPriceRange.max)}đ`;
 
-    // 1. Máy giặt / Điện máy / Gia dụng
-    if (lower.includes('giặt') || lower.includes('tủ lạnh') || lower.includes('nồi cơm') || lower.includes('gia dụng')) {
-      return [
-        {
-          sourceUrl: 'https://www.dienmayxanh.com/may-giat',
-          title: `Trang thông số & Giá bán niêm yết chính hãng tại Điện Máy Xanh`,
-          sourceType: 'Retailer Price',
-          snippet: `Bảng giá niêm yết và thông số kỹ thuật sản phẩm chính hãng. Khoảng giá thị trường ghi nhận từ ${new Intl.NumberFormat('vi-VN').format(marketPriceRange.min)}đ đến ${new Intl.NumberFormat('vi-VN').format(marketPriceRange.max)}đ.`,
-          relevance: 0.98,
-        },
-        {
-          sourceUrl: 'https://tinhte.vn/thread/danh-gia-thiet-bi-gia-dung-gia-dinh.3712011/',
-          title: `Bài viết đánh giá trải nghiệm thiết bị gia dụng trên Tinh Tế`,
-          sourceType: 'Tech Review',
-          snippet: `Cộng đồng Tinh Tế đánh giá độ bền động cơ Inverter, khả năng tiết kiệm điện và độ êm ái khi vận hành.`,
-          relevance: 0.95,
-        },
-        {
-          sourceUrl: 'https://shopee.vn/mall',
-          title: `Gian hàng chính hãng Shopee Mall phân phối sản phẩm`,
-          sourceType: 'Official E-Commerce Store',
-          snippet: `Trang phân phối chính hãng kèm chính sách bảo hành 1 đổi 1 và đánh giá thực tế từ người mua.`,
-          relevance: 0.92,
-        },
-      ];
-    }
-
-    // 2. Mỹ phẩm & Chăm sóc cá nhân (Kem chống nắng, Nước giặt...)
-    if (lower.includes('chống nắng') || lower.includes('mỹ phẩm') || lower.includes('nước giặt')) {
-      return [
-        {
-          sourceUrl: 'https://hasaki.vn/',
-          title: `Trang chi tiết sản phẩm chính hãng & Kiểm định chất lượng tại Hasaki`,
-          sourceType: 'Beauty Retailer',
-          snippet: `Thông tin thành phần, chỉ số bảo vệ da và bảng giá niêm yết chính hãng (${new Intl.NumberFormat('vi-VN').format(marketPriceRange.min)}đ - ${new Intl.NumberFormat('vi-VN').format(marketPriceRange.max)}đ).`,
-          relevance: 0.98,
-        },
-        {
-          sourceUrl: 'https://tinhte.vn/thread/danh-gia-san-pham-cham-soc-ca-nhan.3689123/',
-          title: `Bài viết review trải nghiệm thực tế từ cộng đồng tiêu dùng`,
-          sourceType: 'Consumer Review',
-          snippet: `Đánh giá khả năng kiềm dầu, độ thấm hút và độ an toàn cho da nhạy cảm.`,
-          relevance: 0.94,
-        },
-        {
-          sourceUrl: 'https://shopee.vn/mall',
-          title: `Gian hàng gian hàng Shopee Mall chính hãng`,
-          sourceType: 'Official E-Commerce Store',
-          snippet: `Cam kết 100% chính hãng, có tem nhãn phụ tiếng Việt và đánh giá từ hàng ngàn khách hàng.`,
-          relevance: 0.91,
-        },
-      ];
-    }
-
-    // 3. Công nghệ / Laptops / Phones / Headphones (CellphoneS, Tinh Tế, VOZ)
     return [
       {
-        sourceUrl: 'https://cellphones.com.vn/',
-        title: `Trang thông số & Bảng giá chính hãng tại CellphoneS`,
-        sourceType: 'Official Retailer',
-        snippet: `Thông tin giá bán niêm yết chính hãng VN/A kèm gói bảo hành rơi vỡ. Vùng giá từ ${new Intl.NumberFormat('vi-VN').format(marketPriceRange.min)}đ đến ${new Intl.NumberFormat('vi-VN').format(marketPriceRange.max)}đ.`,
+        sourceUrl: `https://shopee.vn/search?keyword=${q}`,
+        title: `Kết quả tìm "${queryTerm}" tại Shopee (Gian hàng chính hãng)`,
+        sourceType: 'Retailer Price',
+        snippet: `Danh sách sản phẩm "${queryTerm}" kèm giá bán và đánh giá thực tế từ người mua. Khoảng giá thị trường ghi nhận ${price}.`,
         relevance: 0.98,
       },
       {
-        sourceUrl: 'https://tinhte.vn/thread/danh-gia-chi-tiet-thiet-bi-cong-nghe.3720192/',
-        title: `Bài viết đánh giá chi tiết trải nghiệm thực tế trên Tinh Tế`,
-        sourceType: 'Tech Review Thread',
-        snippet: `Đánh giá chuyên sâu về hiệu năng, độ bền pin, chất lượng hiển thị màn hình và tản nhiệt.`,
+        sourceUrl: `https://tiki.vn/search?q=${q}`,
+        title: `Kết quả tìm "${queryTerm}" tại Tiki`,
+        sourceType: 'Official Retailer',
+        snippet: `So sánh giá niêm yết và thông số kỹ thuật giữa các gian hàng chính hãng cho "${queryTerm}".`,
         relevance: 0.95,
       },
       {
-        sourceUrl: 'https://voz.vn/t/thao-luan-danh-gia-thiet-bi-cong-nghe.589123/',
-        title: `Thảo luận & Phản hồi rủi ro từ thành viên VOZ Forum`,
-        sourceType: 'Tech Community Forum',
-        snippet: `Tổng hợp kinh nghiệm chọn mua, kiểm tra tem seal niêm phong và các lưu ý khi sử dụng thực tế.`,
+        sourceUrl: `https://www.lazada.vn/catalog/?q=${q}`,
+        title: `Kết quả tìm "${queryTerm}" tại Lazada (LazMall chính hãng)`,
+        sourceType: 'Official E-Commerce Store',
+        snippet: `Đối chiếu giá bán, chính sách bảo hành và phản hồi người mua cho "${queryTerm}".`,
         relevance: 0.92,
+      },
+      {
+        sourceUrl: `https://www.google.com/search?q=${q}+đánh+giá+review`,
+        title: `Tổng hợp đánh giá "${queryTerm}" từ diễn đàn & báo uy tín`,
+        sourceType: 'Consumer Review',
+        snippet: `Tìm kiếm bài đánh giá chuyên sâu, ưu nhược điểm và rủi ro khi sử dụng "${queryTerm}".`,
+        relevance: 0.9,
       },
     ];
   }

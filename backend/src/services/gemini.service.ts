@@ -8,6 +8,7 @@ export interface RecommendedModel {
   reason: string;
   productUrl?: string;
   userFeedback?: string;
+  imageUrl?: string;
 }
 
 export interface ImageInput {
@@ -30,6 +31,7 @@ export interface NormalizedProductResult {
   isGenericCategory: boolean;
   specs: Record<string, string>;
   summary: string;
+  imageUrl?: string;
   marketPriceRange?: MarketPriceRange;
   recommendedModels?: RecommendedModel[];
   domainAspects?: Array<{ aspect: string; sentiment: 'POSITIVE' | 'NEGATIVE' | 'NEUTRAL' }>;
@@ -90,6 +92,8 @@ CRITICAL REQUIREMENT FOR RECOMMENDED MODELS:
 If generic category search, recommend 3-4 EXACT SPECIFIC PRODUCT MODELS with full brand name and exact model series.
 Include direct product URL where available and real user feedback summary with star ratings!
 
+For imageUrl fields: provide a STABLE, WELL-KNOWN official product image URL (e.g. from the manufacturer's official website or a major retailer's product page). If you cannot be confident of a stable image URL, return an empty string "" so the UI can show a placeholder instead of a broken image.
+
 For marketPriceRange: give the CURRENT observed retail price range (VND) for this product/category in Vietnam. If uncertain, estimate from comparable products and lower your confidence. Never invent historical prices.
 
 Return ONLY a valid JSON object matching this exact schema (no markdown wrap):
@@ -105,6 +109,7 @@ Return ONLY a valid JSON object matching this exact schema (no markdown wrap):
     "Tiêu chí chọn mua": "Độ an toàn, hiệu quả & độ bền trong phân khúc"
   },
   "summary": "Summary in Vietnamese tailored to this specific product domain",
+  "imageUrl": "https://official-product-image-url-or-empty-string",
   "domainAspects": [
     { "aspect": "Domain specific aspect 1", "sentiment": "POSITIVE" },
     { "aspect": "Domain specific aspect 2", "sentiment": "POSITIVE" }
@@ -116,7 +121,8 @@ Return ONLY a valid JSON object matching this exact schema (no markdown wrap):
       "score": 94,
       "reason": "Specific reason why this product is top choice",
       "productUrl": "https://cellphones.com.vn/may-loc-khong-khi-xiaomi-smart-air-purifier-4-compact.html",
-      "userFeedback": "⭐ 4.8/5 (1,200+ nhận xét): Người dùng đánh giá máy lọc bụi mịn PM2.5 rất tốt, độ ồn đêm cực thấp chỉ 20dB."
+      "userFeedback": "⭐ 4.8/5 (1,200+ nhận xét): Người dùng đánh giá máy lọc bụi mịn PM2.5 rất tốt, độ ồn đêm cực thấp chỉ 20dB.",
+      "imageUrl": "https://official-product-image-url-or-empty-string"
     }
   ]
 }`;
@@ -135,6 +141,7 @@ Return ONLY a valid JSON object matching this exact schema (no markdown wrap):
         const textResponse = response.text || '';
         const cleanJsonStr = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
         const parsed = JSON.parse(cleanJsonStr);
+        const models = this.normalizeModels(parsed.recommendedModels);
 
         return {
           brand: parsed.brand || 'Khác',
@@ -145,9 +152,10 @@ Return ONLY a valid JSON object matching this exact schema (no markdown wrap):
           isGenericCategory: isGeneric,
           specs: parsed.specs || {},
           summary: parsed.summary || `BuyWise đã phân tích và tổng hợp thông tin tư vấn tiêu dùng cho "${rawInput}".`,
-          recommendedModels: parsed.recommendedModels,
+          imageUrl: this.normalizeImageUrl(parsed.imageUrl),
+          recommendedModels: models,
           domainAspects: parsed.domainAspects,
-          marketPriceRange: this.normalizeRange(parsed.marketPriceRange) || this.rangeFromModels(parsed.recommendedModels) || undefined,
+          marketPriceRange: this.normalizeRange(parsed.marketPriceRange) || this.rangeFromModels(models) || undefined,
         };
       } catch (err) {
         console.warn('Gemini API call fallback for universal all-domain understanding:', err);
@@ -169,6 +177,27 @@ Return ONLY a valid JSON object matching this exact schema (no markdown wrap):
     const hi = Math.max(min, max);
     const median = Math.min(hi, Math.max(lo, med));
     return { min: Math.round(lo), median: Math.round(median), max: Math.round(hi) };
+  }
+
+  // Chỉ giữ URL ảnh http(s) hợp lệ, ngắn gọn — tránh hallucination / broken image.
+  private static normalizeImageUrl(url?: any): string | undefined {
+    if (typeof url !== 'string') return undefined;
+    const u = url.trim();
+    if (!/^https?:\/\//i.test(u) || u.length > 500) return undefined;
+    return u;
+  }
+
+  // Chuẩn hoá danh sách model đề xuất: ép kiểu price/score + lọc imageUrl hợp lệ.
+  private static normalizeModels(models?: any[]): RecommendedModel[] | undefined {
+    if (!Array.isArray(models)) return undefined;
+    const out = models.map((m) => ({
+      ...(m ?? {}),
+      productName: String(m?.productName ?? ''),
+      price: Number(m?.price) || 0,
+      score: Number(m?.score) || 0,
+      imageUrl: this.normalizeImageUrl(m?.imageUrl),
+    })).filter((m) => m.productName);
+    return out.length ? out : undefined;
   }
 
   // Suy range từ giá các model đề xuất (fallback không có key Gemini).
