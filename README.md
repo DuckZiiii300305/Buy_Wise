@@ -220,25 +220,64 @@ docker compose up --build
 
 ### Deploy lên Google Cloud Run (2 service)
 
-```bash
-# 1) Backend
-cd backend
-gcloud builds submit --tag gcr.io/$GOOGLE_PROJECT/buywise-backend
-gcloud run deploy buywise-backend \
-  --image gcr.io/$GOOGLE_PROJECT/buywise-backend \
-  --set-env-vars DATABASE_URL=...,GEMINI_API_KEY=...,CORS_ORIGIN=... \
-  --platform managed --allow-unauthenticated
+#### Chuẩn bị 1 lần
 
-# 2) Frontend (build với VITE_API_URL trỏ tới URL backend ở bước 1)
-cd ../frontend
-gcloud builds submit --tag gcr.io/$GOOGLE_PROJECT/buywise-frontend \
-  --build-arg VITE_API_URL=https://buywise-backend-xxx.run.app
-gcloud run deploy buywise-frontend \
-  --image gcr.io/$GOOGLE_PROJECT/buywise-frontend \
-  --platform managed --allow-unauthenticated
+```bash
+gcloud auth login
+gcloud config set project YOUR_PROJECT_ID
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com \
+  artifactregistry.googleapis.com secretmanager.googleapis.com
+
+# Tạo repo chứa image (Artifact Registry)
+gcloud artifacts repositories create buywise \
+  --repository-format=docker --location=asia-southeast1
+
+# Lưu API key vào Secret Manager (an toàn hơn --set-env-vars)
+printf '%s' "AIza..." | gcloud secrets create GEMINI_API_KEY \
+  --data-file=- --replication-policy=automatic
+
+export PROJECT_ID="$(gcloud config get-value project)"
+export IMG_BACKEND="asia-southeast1-docker.pkg.dev/$PROJECT_ID/buywise/buywise-backend"
+export IMG_FRONTEND="asia-southeast1-docker.pkg.dev/$PROJECT_ID/buywise/buywise-frontend"
 ```
 
-> Backend dùng biến môi trường (không bake `.env` vào image). API key được giữ ở Cloud Run secrets/env, không bao giờ nằm trong frontend hay Git.
+> **MySQL**: cần 1 database MySQL truy cập được từ internet. Có thể dùng Cloud SQL (MySQL), hoặc nhanh cho demo: một MySQL host free (Aiven / Railway…). Lấy chuỗi `mysql://USER:PASS@HOST:3306/buywise`.
+
+#### 1) Backend
+
+```bash
+cd backend
+gcloud builds submit --tag "$IMG_BACKEND"
+
+gcloud run deploy buywise-backend \
+  --image "$IMG_BACKEND" \
+  --region asia-southeast1 --platform managed --allow-unauthenticated \
+  --set-secrets GEMINI_API_KEY=GEMINI_API_KEY:latest \
+  --set-env-vars DATABASE_URL="mysql://USER:PASS@HOST:3306/buywise",CORS_ORIGIN="*",GEMINI_MODEL="gemini-3.6-flash"
+
+# Đồng bộ schema Prisma lên DB (chạy local, trỏ tới DB trên cloud)
+DATABASE_URL="mysql://USER:PASS@HOST:3306/buywise" npx prisma db push
+
+# Lấy URL backend để dùng ở bước 2
+gcloud run services describe buywise-backend --region asia-southeast1 \
+  --format="value(status.url)"
+```
+
+#### 2) Frontend
+
+`VITE_API_URL` là biến **build-time** → phải truyền lúc build qua `frontend/cloudbuild.yaml` (không phải lúc deploy):
+
+```bash
+cd ../frontend
+gcloud builds submit --config cloudbuild.yaml \
+  --substitutions _IMAGE="$IMG_FRONTEND",_VITE_API_URL="https://buywise-backend-XXXXXX.a.run.app"
+
+gcloud run deploy buywise-frontend \
+  --image "$IMG_FRONTEND" \
+  --region asia-southeast1 --platform managed --allow-unauthenticated
+```
+
+> Sau khi có URL frontend, có thể quay lại deploy backend với `CORS_ORIGIN` = URL frontend thay vì `*` (chặt hơn). API key nằm ở Secret Manager, không bake vào image, không nằm trong frontend hay Git.
 
 ---
 

@@ -1,0 +1,16 @@
+# Build frontend image trên Cloud Build.
+# VITE_API_URL là biến BUILD-TIME nên phải truyền lúc build (không phải lúc deploy).
+# Dùng:
+#   gcloud builds submit --config cloudbuild.yaml \
+#     --substitutions _IMAGE="asia-southeast1-docker.pkg.dev/$PROJECT_ID/buywise/buywise-frontend",_VITE_API_URL="https://buywise-backend-XXXXXX.a.run.app"
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '--build-arg'
+      - 'VITE_API_URL=${_VITE_API_URL}'
+      - '-t'
+      - '${_IMAGE}'
+      - '.'
+images:
+  - '${_IMAGE}'
