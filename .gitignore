@@ -24,3 +24,7 @@ build/
 .idea/
 # Microsoft Office lock files
 ~$*
+
+# Word / Office docs — giữ local, không commit lên repo
+*.docx
+*.doc
