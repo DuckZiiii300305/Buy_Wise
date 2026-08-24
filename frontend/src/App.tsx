@@ -111,6 +111,7 @@ export default function App() {
   const [currentAnalysis, setCurrentAnalysis] = useState<AnalysisData | null>(null);
   const [loading, setLoading] = useState(false);
   const [researchStep, setResearchStep] = useState<string>('');
+  const [errorMsg, setErrorMsg] = useState<string>('');
 
   // Image upload state (M01): base64 + MIME type của ảnh sản phẩm (không kèm prefix)
   const [imageBase64, setImageBase64] = useState<string>('');
@@ -173,8 +174,11 @@ export default function App() {
   // Fetch analysis history from DB
   const fetchHistory = () => {
     fetch(`${backendUrl}/api/analyses`)
-      .then(res => res.json())
-      .then(resData => {
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((resData) => {
         if (resData.success && Array.isArray(resData.data)) {
           setHistory(resData.data);
           if (resData.data.length > 0 && !currentAnalysis) {
@@ -182,7 +186,7 @@ export default function App() {
           }
         }
       })
-      .catch(err => console.error("Error loading history:", err));
+      .catch((err) => console.error('Error loading history:', err));
   };
 
   useEffect(() => {
@@ -194,12 +198,9 @@ export default function App() {
     if (!productInput.trim()) return;
 
     setLoading(true);
+    setErrorMsg('');
     setResultImage(imagePreview); // giữ ảnh upload (nếu có) để hiển thị kèm kết quả
-    setResearchStep('🔍 Gemini AI đang nhận diện tên & biến thể sản phẩm...');
-
-    setTimeout(() => {
-      setResearchStep('🌐 Google Search Grounding đang quét giá & review thực tế...');
-    }, 600);
+    setResearchStep('🔍 Gemini AI đang nghiên cứu & phân tích sản phẩm...');
 
     fetch(`${backendUrl}/api/products/understand`, {
       method: 'POST',
@@ -213,29 +214,30 @@ export default function App() {
         imageMimeType: imageMimeType || undefined,
       }),
     })
-      .then(res => res.json())
-      .then(resData => {
+      .then(async (res) => {
+        const resData = await res.json().catch(() => null);
+        if (!res.ok) {
+          throw new Error(resData?.error || `Lỗi máy chủ (HTTP ${res.status}).`);
+        }
+        return resData;
+      })
+      .then((resData) => {
         setLoading(false);
         setResearchStep('');
         if (resData.success && resData.data.analysis) {
           setCurrentAnalysis(resData.data.analysis);
           fetchHistory();
           setActiveTab('verdict');
-        } else if (history.length > 0) {
-          setResultImage('');
-          setCurrentAnalysis(history[0]);
-          setActiveTab('verdict');
+        } else {
+          throw new Error(resData?.error || 'Không nhận được kết quả phân tích hợp lệ.');
         }
       })
-      .catch(err => {
-        console.error("Error analyzing product:", err);
+      .catch((err) => {
+        console.error('Error analyzing product:', err);
         setLoading(false);
         setResearchStep('');
-        if (history.length > 0) {
-          setResultImage('');
-          setCurrentAnalysis(history[0]);
-          setActiveTab('verdict');
-        }
+        // KHÔNG âm thầm hiện kết quả cũ như thể là kết quả mới — báo lỗi rõ ràng cho người dùng.
+        setErrorMsg(err instanceof Error ? err.message : 'Có lỗi xảy ra. Vui lòng thử lại.');
       });
   };
 
@@ -434,6 +436,16 @@ export default function App() {
                 <span>Nước giặt xả</span>
               </button>
             </div>
+
+            {errorMsg && (
+              <div className="bg-rose-950/30 border border-rose-500/40 text-rose-200 rounded-2xl px-4 py-3 text-sm flex items-start space-x-3">
+                <AlertTriangle className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="font-semibold text-rose-300">Không thể phân tích sản phẩm</p>
+                  <p className="text-xs text-rose-200/80">{errorMsg}</p>
+                </div>
+              </div>
+            )}
 
             {/* Search Input Box Card */}
             <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-2xl space-y-6">
