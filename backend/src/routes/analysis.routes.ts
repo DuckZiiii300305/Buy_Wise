@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { AnalysisService } from '../services/analysis.service.js';
+import { GeminiService } from '../services/gemini.service.js';
 import { errMsg } from '../utils/errors.js';
 
 export const analysisRouter = Router();
@@ -50,6 +51,26 @@ analysisRouter.post('/', async (req, res) => {
     });
 
     res.status(201).json({ success: true, data: analysis });
+  } catch (error) {
+    res.status(500).json({ success: false, error: errMsg(error) });
+  }
+});
+
+// POST /api/analyses/chat - Follow-up Q&A về một kết luận đã phân tích (Evidence → Analysis → Decision → Explain)
+analysisRouter.post('/chat', async (req, res) => {
+  try {
+    const { context, question } = req.body || {};
+    const cleanQuestion = String(question ?? '').trim();
+    if (!cleanQuestion) {
+      return res.status(400).json({ success: false, error: 'question is required' });
+    }
+    const answer = await GeminiService.answerFollowUp(context ?? {}, cleanQuestion);
+    res.json({
+      success: true,
+      data: {
+        answer: answer ?? 'BuyWise hiện chưa kết nối được Gemini để trả lời câu hỏi này. Bạn vẫn có thể xem lại kết luận, bảng điểm 4 thành phần và lý do phản biện ở trên. (Cần cấu hình API key Gemini hợp lệ ở backend.)',
+      },
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: errMsg(error) });
   }

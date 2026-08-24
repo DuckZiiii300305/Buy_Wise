@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import {
   ShoppingBag, Search, Sparkles, CheckCircle2, AlertTriangle, Clock,
   ArrowRight, Tag, ShieldCheck, Scale, History, RefreshCw, ThumbsUp, ThumbsDown,
-  ChevronRight, ExternalLink, Zap, Sliders, DollarSign, Layers, ImagePlus, X
+  ChevronRight, ExternalLink, Zap, Sliders, DollarSign, Layers, ImagePlus, X,
+  MessageCircle, Send
 } from 'lucide-react';
 
 interface AnalysisData {
@@ -100,6 +101,68 @@ function parseAltReason(reason: string) {
   return { displayReason, directUrl, feedbackText, imageUrl };
 }
 
+// Kết quả mẫu (seed) cho nút "Xem demo nhanh": không phụ thuộc Gemini/API key, giúp demo
+// video / walkthrough luôn chạy ổn định (không lo 429/timeout giữa chừng). Số liệu minh họa,
+// giữ đúng cấu trúc AnalysisData để mọi card UI hiển thị đầy đủ.
+const DEMO_ANALYSIS: AnalysisData = {
+  id: 'demo-air-purifier',
+  currentPrice: 1890000,
+  verdict: 'BUY',
+  score: 91,
+  confidence: 0.95,
+  createdAt: new Date().toISOString(),
+  product: {
+    brand: 'Xiaomi',
+    model: 'Smart Air Purifier 4 Compact',
+    category: 'Điện gia dụng - Máy lọc không khí',
+    variant: 'Màng lọc HEPA H13 diệt khuẩn & lọc bụi mịn PM2.5',
+    rawInput: 'Máy lọc không khí Xiaomi Smart Air Purifier 4 Compact, ngân sách 2 triệu',
+    normalizedJson: {},
+  },
+  reasoning: {
+    summary: 'BuyWise đã quét phổ giá thị trường và trích xuất bằng chứng từ 4 nguồn bán lẻ/đánh giá uy tín cho Xiaomi Smart Air Purifier 4 Compact. Mức giá bạn nhập nằm sát trung vị thị trường — rất hợp lý.',
+    pros: [
+      'Màng lọc HEPA 3 trong 1 lọc sạch bụi mịn PM2.5, phù hợp phòng ngủ ~27m²',
+      'Điều khiển thông minh qua ứng dụng Mi Home, hẹn giờ & bật/tắt từ xa',
+      'Độ ồn ban đêm cực thấp (~20dB), không ảnh hưởng giấc ngủ',
+    ],
+    cons: [
+      'Chi phí thay màng lọc định kỳ (~6-8 tháng) cần tính vào ngân sách',
+      'Không có màn hình hiển thị chất lượng không khí trực tiếp trên máy (xem qua app)',
+    ],
+    hiddenConcerns: [
+      'Nên mua tại gian hàng chính hãng (Xiaomi Vietnam) để nhận đủ bảo hành 12 tháng và tem niêm phong',
+    ],
+    priceAssessment: 'GOOD',
+    priceAssessmentNote: 'Mức giá bạn nhập (1.890.000đ) rất HỢP LÝ, nằm trong vùng trung vị của thị trường (1.890.000đ).',
+    marketRange: { min: 1690000, median: 1890000, max: 2290000 },
+    isGenericCategory: false,
+    scoreBreakdown: {
+      weights: { quality: 0.35, userFit: 0.25, reviewConfidence: 0.2, priceValue: 0.2 },
+      components: { quality: 93, userFit: 90, reviewConfidence: 92, priceValue: 88 },
+      finalScore: 91,
+    },
+    counterReasons: [
+      'Điểm 91/100 dựa trên dữ liệu công khai có thể thay đổi nếu có đánh giá mới hoặc giá bán mới.',
+    ],
+  },
+  evidences: [
+    { id: 'de1', sourceUrl: 'https://cellphones.com.vn/may-loc-khong-khi-xiaomi-smart-air-purifier-4-compact.html', title: 'Máy lọc không khí Xiaomi Smart Air Purifier 4 Compact - CellphoneS', sourceType: 'Retailer Price', snippet: 'Giá niêm yết chính hãng & thông số kỹ thuật, màng lọc HEPA 3 trong 1.', relevance: 0.98 },
+    { id: 'de2', sourceUrl: 'https://www.dienmayxanh.com/may-loc-khong-khi/xiaomi-smart-air-purifier-4-compact', title: 'Xiaomi Air Purifier 4 Compact - Điện Máy Xanh', sourceType: 'Retailer Price', snippet: 'Đối chiếu giá & chính sách bảo hành giữa các gian hàng chính hãng.', relevance: 0.95 },
+    { id: 'de3', sourceUrl: 'https://tinhte.vn', title: 'Đánh giá Xiaomi Air Purifier 4 Compact - Tinhte', sourceType: 'Tech Review', snippet: 'Bài đánh giá chuyên sâu: độ ồn ~20dB, lọc bụi mịn PM2.5 hiệu quả.', relevance: 0.9 },
+  ],
+  reviews: [
+    { id: 'dr1', aspect: 'Khả năng lọc bụi mịn PM2.5 & khử mùi', sentiment: 'POSITIVE', confidence: 0.95 },
+    { id: 'dr2', aspect: 'Độ ồn vận hành ban đêm', sentiment: 'POSITIVE', confidence: 0.93 },
+    { id: 'dr3', aspect: 'Chi phí thay thế màng lọc', sentiment: 'NEUTRAL', confidence: 0.9 },
+  ],
+  alternatives: [
+    { id: 'da1', productName: 'Máy lọc không khí Sharp FP-J30E-B (Plasmacluster Ion)', price: 2190000, score: 92, reason: 'Top 1 cho khử mùi hôi phòng kín | ⭐ 4.7/5 (1,850+ đánh giá): khử mùi ẩm mốc, máy bền | URL: https://www.dienmayxanh.com/may-loc-khong-khi/sharp-fp-j30e-b' },
+    { id: 'da2', productName: 'Máy lọc không khí Levoit Core 300S (Wifi)', price: 2790000, score: 91, reason: 'Top 1 cho phòng lớn 41m² | ⭐ 4.9/5 (920+ đánh giá): hút gió 360° mạnh | URL: https://cellphones.com.vn/may-loc-khong-khi-levoit-core-300s.html' },
+    { id: 'da3', productName: 'Máy lọc không khí Panasonic F-PXM55A (Nanoe-X)', price: 6890000, score: 95, reason: 'Dòng cao cấp diệt khuẩn & bù ẩm | ⭐ 4.9/5 (450+ đánh giá): Nanoe-X diệt 99.9% vi rút | URL: https://www.dienmayxanh.com/may-loc-khong-khi/panasonic-f-pxm55a' },
+  ],
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'analyze' | 'verdict' | 'compare' | 'history'>('analyze');
   const [productInput, setProductInput] = useState('');
@@ -119,6 +182,11 @@ export default function App() {
   const [imagePreview, setImagePreview] = useState<string>('');
   // Ảnh của lượt phân tích hiện tại (dùng hiển thị minh họa kèm kết quả nếu user có upload)
   const [resultImage, setResultImage] = useState<string>('');
+
+  // Follow-up Q&A ("Hỏi thêm về kết luận") — Evidence → Analysis → Decision → Explain
+  const [chatMessages, setChatMessages] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
 
   // API base: dùng biến môi trường khi deploy (VITE_API_URL), mặc định backend local.
   const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:3333';
@@ -193,6 +261,12 @@ export default function App() {
     fetchHistory();
   }, []);
 
+  // Khi đổi sang một kết luận khác, xoá hội thoại hỏi-đáp cũ (tránh nhầm ngữ cảnh).
+  useEffect(() => {
+    setChatMessages([]);
+    setChatInput('');
+  }, [currentAnalysis?.id]);
+
   const handleStartAnalysis = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!productInput.trim()) return;
@@ -238,6 +312,50 @@ export default function App() {
         setResearchStep('');
         // KHÔNG âm thầm hiện kết quả cũ như thể là kết quả mới — báo lỗi rõ ràng cho người dùng.
         setErrorMsg(err instanceof Error ? err.message : 'Có lỗi xảy ra. Vui lòng thử lại.');
+      });
+  };
+
+  // Hỏi thêm BuyWise về kết luận (follow-up Q&A) — gửi context + câu hỏi, nhận câu trả lời ngắn gọn.
+  const handleChatSend = () => {
+    const q = chatInput.trim();
+    if (!q || !currentAnalysis || chatLoading) return;
+    setChatMessages((m) => [...m, { role: 'user', text: q }]);
+    setChatInput('');
+    setChatLoading(true);
+
+    const r = currentAnalysis.reasoning;
+    const context = {
+      productName: `${currentAnalysis.product.brand ?? ''} ${currentAnalysis.product.model ?? ''}`.trim(),
+      category: currentAnalysis.product.category,
+      verdict: currentAnalysis.verdict,
+      score: currentAnalysis.score,
+      priceAssessment: r.priceAssessment,
+      priceAssessmentNote: r.priceAssessmentNote,
+      summary: r.summary,
+      pros: r.pros,
+      cons: r.cons,
+      hiddenConcerns: r.hiddenConcerns,
+      scoreBreakdown: r.scoreBreakdown,
+    };
+
+    fetch(`${backendUrl}/api/analyses/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ context, question: q }),
+    })
+      .then(async (res) => {
+        const resData = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(resData?.error || `Lỗi máy chủ (HTTP ${res.status}).`);
+        return resData;
+      })
+      .then((resData) => {
+        const answer = resData?.data?.answer || 'BuyWise chưa có câu trả lời lúc này.';
+        setChatMessages((m) => [...m, { role: 'assistant', text: answer }]);
+        setChatLoading(false);
+      })
+      .catch((err) => {
+        setChatMessages((m) => [...m, { role: 'assistant', text: `⚠️ ${err instanceof Error ? err.message : 'Có lỗi xảy ra.'}` }]);
+        setChatLoading(false);
       });
   };
 
@@ -434,6 +552,18 @@ export default function App() {
               >
                 <Tag className="w-3 h-3 text-emerald-400" />
                 <span>Nước giặt xả</span>
+              </button>
+            </div>
+
+            {/* Instant demo — nạp kết quả mẫu đầy đủ không cần gọi Gemini (demo video không lo nghẽn 429/timeout) */}
+            <div className="flex items-center justify-center pt-1">
+              <button
+                type="button"
+                onClick={() => { setResultImage(''); setCurrentAnalysis(DEMO_ANALYSIS); setActiveTab('verdict'); }}
+                className="px-4 py-2 rounded-xl bg-violet-600/20 border border-violet-500/40 text-violet-300 hover:bg-violet-600/40 hover:border-violet-400 transition font-bold text-xs flex items-center space-x-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                <span>Xem demo nhanh — kết quả mẫu đầy đủ (không cần AI)</span>
               </button>
             </div>
 
@@ -966,6 +1096,66 @@ export default function App() {
                       </a>
                     ))}
                   </div>
+                </div>
+              {/* Follow-up Q&A — Hỏi thêm về kết luận (Evidence → Analysis → Decision → Explain) */}
+                <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
+                  <h3 className="font-bold text-sm text-slate-200 flex items-center space-x-2">
+                    <MessageCircle className="w-4 h-4 text-violet-400" />
+                    <span>Hỏi thêm BuyWise về kết luận này</span>
+                  </h3>
+
+                  {/* Conversation */}
+                  <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                    {chatMessages.length === 0 && (
+                      <p className="text-xs text-slate-500">
+                        Gợi ý: <em>"Nếu em chỉ có X đồng thì nên chọn gì?"</em> • <em>"Rủi ro lớn nhất khi mua là gì?"</em>
+                      </p>
+                    )}
+                    {chatMessages.map((m, i) => (
+                      <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-xs leading-relaxed whitespace-pre-line ${
+                          m.role === 'user'
+                            ? 'bg-blue-600/90 text-white rounded-br-sm'
+                            : 'bg-slate-950/80 border border-slate-800 text-slate-200 rounded-bl-sm'
+                        }`}>
+                          {m.text}
+                        </div>
+                      </div>
+                    ))}
+                    {chatLoading && (
+                      <div className="flex justify-start">
+                        <div className="bg-slate-950/80 border border-slate-800 px-4 py-2.5 rounded-2xl rounded-bl-sm text-xs text-slate-400 flex items-center space-x-2">
+                          <span className="flex space-x-1">
+                            <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" />
+                            <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
+                            <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+                          </span>
+                          <span>BuyWise đang trả lời…</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Input */}
+                  <form
+                    onSubmit={(e) => { e.preventDefault(); handleChatSend(); }}
+                    className="flex items-center gap-2"
+                  >
+                    <input
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      placeholder="Đặt câu hỏi về sản phẩm hoặc kết luận…"
+                      className="flex-1 bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50 transition"
+                    />
+                    <button
+                      type="submit"
+                      disabled={chatLoading || !chatInput.trim()}
+                      className="px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold flex items-center space-x-1.5 transition"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>Gửi</span>
+                    </button>
+                  </form>
                 </div>
               </>
             ) : (

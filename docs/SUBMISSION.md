@@ -4,6 +4,21 @@
 
 ---
 
+## 0. Lộ trình từng bước (đến 28/08) — làm theo thứ tự
+
+| # | Việc | Ai làm | Khi | Ghi chú |
+|---|---|---|---|---|
+| 1 | Sửa API key trong `backend/.env` thành dạng `AIza...` | **BẠN** | hôm nay | lấy tại https://aistudio.google.com/app/apikey |
+| 2 | Tạo AI Studio App (dán System Prompt §3) → copy link chia sẻ | **BẠN** | hôm nay–mai | link này chính là "AI Studio Link" |
+| 3 | Quay video demo 30–60s (§4) | **BẠN** | mai | OBS/Xbox Game Bar, up YouTube **Public** |
+| 4 | Đăng LinkedIn (§5) kèm link video + hành trình | **BẠN** | trước 27/08 | |
+| 5 | Điền **Form Hoàn thành** với 3 link (AI Studio + YouTube + LinkedIn) | **BẠN** | trước 28/08 | mở khóa hạng mục |
+| 6 | *(Tùy chọn)* Deploy Cloud Run + DB free (README) → thêm link app | **BẠN** (tôi hướng dẫn) | nếu kịp | điểm cộng, không bắt buộc |
+
+> Các bước "BẠN" đã có sẵn nội dung ở trong tài liệu này (prompt §3, kịch bản video §4, draft post §5) — bạn chỉ cần thao tác theo.
+
+---
+
 ## 1. Yêu cầu bắt buộc
 
 - [ ] **AI Studio Link** — sản phẩm được xây dựng bằng Google AI Studio.
