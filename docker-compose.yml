@@ -10,7 +10,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:-mysql://root:@host.docker.internal:3306/buywise}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3003}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.7-flash}
 
   frontend:
     build:

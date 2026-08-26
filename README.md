@@ -175,7 +175,7 @@ Backend (`.env`, **không bao giờ commit**):
 | `DATABASE_URL` | Chuỗi kết nối MySQL | `mysql://root:@localhost:3306/buywise` |
 | `CORS_ORIGIN` | Origin frontend được phép | `http://localhost:3003` |
 | `GEMINI_API_KEY` | API key Google AI Studio | *(bắt buộc)* |
-| `GEMINI_MODEL` | Model Gemini | `gemini-3.6-flash` |
+| `GEMINI_MODEL` | Model Gemini | `gemini-3.7-flash` |
 
 Frontend (build-time):
 
@@ -253,7 +253,7 @@ gcloud run deploy buywise-backend \
   --image "$IMG_BACKEND" \
   --region asia-southeast1 --platform managed --allow-unauthenticated \
   --set-secrets GEMINI_API_KEY=GEMINI_API_KEY:latest \
-  --set-env-vars DATABASE_URL="mysql://USER:PASS@HOST:3306/buywise",CORS_ORIGIN="*",GEMINI_MODEL="gemini-3.6-flash"
+  --set-env-vars DATABASE_URL="mysql://USER:PASS@HOST:3306/buywise",CORS_ORIGIN="*",GEMINI_MODEL="gemini-3.7-flash"
 
 # Đồng bộ schema Prisma lên DB (chạy local, trỏ tới DB trên cloud)
 DATABASE_URL="mysql://USER:PASS@HOST:3306/buywise" npx prisma db push
