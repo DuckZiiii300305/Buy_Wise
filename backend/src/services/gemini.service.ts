@@ -41,6 +41,7 @@ export interface NormalizedProductResult {
 export class GeminiService {
   private static ai: GoogleGenAI | null = null;
   private static resolvedModel: string | null = null;
+  private static fallbackModels: string[] = [];
 
   private static getClient(): GoogleGenAI | null {
     if (!this.ai && env.GEMINI_API_KEY) {
@@ -52,6 +53,42 @@ export class GeminiService {
   /** Model thực tế dùng để gọi Gemini (ưu tiên model đã tự-resolve lúc startup). */
   private static getModel(): string {
     return this.resolvedModel || env.GEMINI_MODEL;
+  }
+
+  /**
+   * Gọi generateContent với retry + tự chuyển model khi gặp lỗi 503/429 (quá tải).
+   * Model chính (getModel) thử trước; lỗi tạm thời thì thử lại, vẫn lỗi thì chuyển
+   * sang model "flash" khác đã liệt kê lúc probe. Lỗi thật (401/404/...) chuyển model
+   * ngay, không retry.
+   */
+  private static async generateWithFallback(
+    makeCall: (model: string) => Promise<any>,
+    label: string,
+  ): Promise<any> {
+    const primary = this.getModel();
+    const candidates = [primary, ...this.fallbackModels.filter((m) => m !== primary)];
+    let lastErr: unknown = null;
+
+    for (const model of candidates) {
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          return await withTimeout(makeCall(model), 45000, label);
+        } catch (err: any) {
+          lastErr = err;
+          const status = err?.status ?? err?.code;
+          const msg = String(err?.message ?? '');
+          const transient =
+            status === 503 || status === 429
+            || status === 'UNAVAILABLE' || status === 'RESOURCE_EXHAUSTED'
+            || msg.includes('503') || msg.includes('429')
+            || msg.includes('high demand') || msg.includes('temporarily');
+          if (!transient) break; // lỗi thật -> bỏ model này, sang model kế tiếp
+          console.warn(`[Gemini] ${label} — model "${model}" quá tải (503/429), lần thử ${attempt}/2.`);
+          await new Promise((r) => setTimeout(r, 1200 * attempt));
+        }
+      }
+    }
+    throw lastErr;
   }
 
   /**
@@ -85,6 +122,8 @@ export class GeminiService {
         return;
       }
       const flat = names.map((n) => n.split('/').pop() || n);
+      // Lưu các model "flash" làm fallback khi model chính gặp 503/429 quá tải.
+      this.fallbackModels = flat.filter((n) => /flash/i.test(n));
       const configured = env.GEMINI_MODEL;
       const has = flat.includes(configured)
         || names.includes(configured)
@@ -195,13 +234,12 @@ Return ONLY a valid JSON object matching this exact schema (no markdown wrap):
           ? [{ parts: [{ text: prompt }, { inlineData: { mimeType: image.mimeType, data: image.data } }] }]
           : prompt;
 
-        const response = await withTimeout(
-          client.models.generateContent({
-            model: this.getModel(),
+        const response = await this.generateWithFallback(
+          (m) => client.models.generateContent({
+            model: m,
             contents,
             config: { responseMimeType: 'application/json' as const },
           }),
-          45000,
           'Gemini understandProduct',
         );
 
@@ -320,9 +358,8 @@ ${question}
 Trả lời bằng tiếng Việt, NGẮN GỌN (tối đa 6–8 dòng), bám sát dữ liệu đã cho. Chỉ dựa vào phân tích ở trên; nếu thiếu dữ liệu thì nói rõ "BuyWise chưa đủ dữ liệu để khẳng định điểm này". Không bịa số, giá hoặc review.`;
 
     try {
-      const response = await withTimeout(
-        client.models.generateContent({ model: this.getModel(), contents: prompt }),
-        45000,
+      const response = await this.generateWithFallback(
+        (m) => client.models.generateContent({ model: m, contents: prompt }),
         'Gemini follow-up chat',
       );
       const text = (response.text || '').trim();
