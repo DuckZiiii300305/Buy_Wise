@@ -1,5 +1,4 @@
-import { prisma } from '../db/prisma.js';
-import { VerdictType } from '@prisma/client';
+import { prisma, VerdictType } from '../db/prisma.js';
 
 export interface CreateAnalysisInput {
   productId: string;

@@ -1,0 +1,8 @@
+{
+  "name": "BuyWise - AI Purchase Decision Engine",
+  "description": "AI Purchase Decision Engine providing deep product research, price benchmarking, and multi-factor buying verdict recommendations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

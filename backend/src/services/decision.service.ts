@@ -1,4 +1,4 @@
-import { VerdictType } from '@prisma/client';
+import { VerdictType } from '../db/prisma.js';
 
 export interface ReviewSignal {
   aspect: string;

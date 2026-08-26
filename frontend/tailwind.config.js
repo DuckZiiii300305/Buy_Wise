@@ -1,15 +1,9 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  // `relative: true` giúp Tailwind resolve các đường dẫn content theo vị trí
-  // tailwind.config.js (frontend/) thay vì theo thư mục chạy lệnh build — khắc phục
-  // việc AI Studio build từ thư mục gốc repo làm mất toàn bộ CSS utility.
-  content: {
-    relative: true,
-    files: [
-      "./index.html",
-      "./src/**/*.{js,ts,jsx,tsx}",
-    ],
-  },
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+  ],
   theme: {
     extend: {
       colors: {

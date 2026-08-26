@@ -255,8 +255,8 @@ export default function App() {
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
 
-  // API base: dùng biến môi trường khi deploy (VITE_API_URL), mặc định backend local.
-  const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:3333';
+  // API base: dùng biến môi trường khi deploy (VITE_API_URL), mặc định same-origin relative path.
+  const backendUrl = import.meta.env.VITE_API_URL || '';
 
   // Priorities options — tiêu chí phổ quát áp dụng cho MỌI loại sản phẩm (không gắn riêng điện tử)
   const priorityOptions = [
