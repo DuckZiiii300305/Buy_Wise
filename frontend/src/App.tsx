@@ -163,6 +163,73 @@ const DEMO_ANALYSIS: AnalysisData = {
   ],
 };
 
+function RadarChart({
+  components,
+  finalScore,
+}: {
+  components: { quality: number; userFit: number; reviewConfidence: number; priceValue: number };
+  finalScore: number;
+}) {
+  const axes = [
+    { key: 'quality', label: 'Chất lượng' },
+    { key: 'userFit', label: 'Hợp nhu cầu' },
+    { key: 'reviewConfidence', label: 'Tin cậy review' },
+    { key: 'priceValue', label: 'Giá trị / giá' },
+  ] as const;
+  const C = 140;
+  const CY = 150;
+  const R = 88;
+  const angles = [-90, 0, 90, 180];
+  const idx = [0, 1, 2, 3];
+  const pt = (i: number, frac: number) => {
+    const rad = (angles[i] * Math.PI) / 180;
+    return { x: C + R * frac * Math.cos(rad), y: CY + R * frac * Math.sin(rad) };
+  };
+  const values = axes.map((a) => Math.max(0, Math.min(100, components[a.key])));
+  const dataPoints = idx.map((i) => pt(i, values[i] / 100));
+  const poly = dataPoints.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+
+  return (
+    <svg viewBox="0 0 280 304" className="w-full max-w-[250px]" role="img" aria-label={`Biểu đồ 4 thành phần quyết định, tổng điểm ${finalScore}/100`}>
+      {[0.25, 0.5, 0.75, 1].map((f) => (
+        <polygon key={f} points={idx.map((i) => `${pt(i, f).x.toFixed(1)},${pt(i, f).y.toFixed(1)}`).join(' ')} fill="none" stroke="rgba(148,163,184,0.16)" strokeWidth="1" />
+      ))}
+      {idx.map((i) => {
+        const p = pt(i, 1);
+        return <line key={i} x1={C} y1={CY} x2={p.x} y2={p.y} stroke="rgba(148,163,184,0.22)" strokeWidth="1" />;
+      })}
+      <polygon points={poly} fill="rgba(99,102,241,0.22)" stroke="#818cf8" strokeWidth="2" strokeLinejoin="round" />
+      {axes.map((a, i) => {
+        const p = dataPoints[i];
+        return <circle key={a.key} cx={p.x} cy={p.y} r="3.5" fill="#818cf8" stroke="#0f172a" strokeWidth="1.5" />;
+      })}
+      {axes.map((a, i) => {
+        const p = pt(i, Math.max(0.16, values[i] / 100 - 0.14));
+        return (
+          <text key={a.key} x={p.x} y={p.y} textAnchor="middle" dominantBaseline="middle" fill="#e2e8f0" fontSize="11" fontWeight="700">
+            {values[i]}
+          </text>
+        );
+      })}
+      {axes.map((a, i) => {
+        const p = pt(i, 1.3);
+        const anchor = i === 1 ? 'start' : i === 3 ? 'end' : 'middle';
+        return (
+          <text key={a.key} x={p.x} y={p.y} textAnchor={anchor} dominantBaseline="middle" fill="#94a3b8" fontSize="10.5">
+            {a.label}
+          </text>
+        );
+      })}
+      <text x={C} y={CY - 4} textAnchor="middle" dominantBaseline="middle" fill="#e2e8f0" fontSize="30" fontWeight="800">
+        {finalScore}
+      </text>
+      <text x={C} y={CY + 16} textAnchor="middle" dominantBaseline="middle" fill="#64748b" fontSize="10">
+        / 100 tổng điểm
+      </text>
+    </svg>
+  );
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'analyze' | 'verdict' | 'compare' | 'history'>('analyze');
   const [productInput, setProductInput] = useState('');
@@ -941,8 +1008,23 @@ export default function App() {
                 {/* Score Breakdown & Counter-Reasons (Decision Engine transparency) */}
                 {currentAnalysis.reasoning.scoreBreakdown && (
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Radar — hồ sơ 4 thành phần quyết định */}
+                    <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 flex flex-col items-center gap-4">
+                      <h3 className="font-bold text-sm text-slate-200 self-start flex items-center space-x-2">
+                        <Zap className="w-4 h-4 text-indigo-400" />
+                        <span>Hồ sơ điểm cân bằng</span>
+                      </h3>
+                      <RadarChart
+                        components={currentAnalysis.reasoning.scoreBreakdown.components}
+                        finalScore={currentAnalysis.reasoning.scoreBreakdown.finalScore}
+                      />
+                      <p className="text-[11px] text-slate-500 text-center leading-relaxed">
+                        Bốn trục = 4 thành phần quyết định. Hình càng đầy &amp; cân đối, sản phẩm càng ít điểm yếu rõ rệt.
+                      </p>
+                    </div>
+
                     {/* Weights & Component Scores */}
-                    <div className="lg:col-span-2 bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
+                    <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
                       <div className="flex items-center justify-between">
                         <h3 className="font-bold text-sm text-slate-200 flex items-center space-x-2">
                           <Sliders className="w-4 h-4 text-indigo-400" />
@@ -1072,6 +1154,10 @@ export default function App() {
                     <ShieldCheck className="w-4 h-4 text-blue-400" />
                     <span>Nguồn bằng chứng kiểm chứng (Evidence Sources)</span>
                   </h3>
+                  <p className="text-[11px] text-slate-500 leading-relaxed -mt-2">
+                    <span className="text-blue-400 font-medium">Xanh dương</span> = nguồn thực tế đã xác minh (Grounding / trang bán hàng).{' '}
+                    <span className="text-amber-400 font-medium">Cam</span> = link tìm kiếm tự suy, chưa xác minh — minh bạch để bạn không nhầm lẫn.
+                  </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {currentAnalysis.evidences.map((ev) => (
                       <a
@@ -1082,9 +1168,17 @@ export default function App() {
                         className="bg-slate-950/70 border border-slate-800 hover:border-blue-500/50 p-4 rounded-xl space-y-2 transition group block"
                       >
                         <div className="flex items-center justify-between text-[11px] text-slate-400">
-                          <span className="bg-blue-500/10 text-blue-400 font-semibold px-2 py-0.5 rounded border border-blue-500/20">
-                            {ev.sourceType}
-                          </span>
+                          {ev.sourceType === 'Tìm kiếm (chưa xác minh)' ? (
+                            <span className="bg-amber-500/10 text-amber-400 font-semibold px-2 py-0.5 rounded border border-amber-500/20">
+                              <AlertTriangle className="w-3 h-3 inline-block mr-1 -mt-0.5" />
+                              {ev.sourceType}
+                            </span>
+                          ) : (
+                            <span className="bg-blue-500/10 text-blue-400 font-semibold px-2 py-0.5 rounded border border-blue-500/20">
+                              <ShieldCheck className="w-3 h-3 inline-block mr-1 -mt-0.5" />
+                              {ev.sourceType}
+                            </span>
+                          )}
                           <ExternalLink className="w-3.5 h-3.5 group-hover:text-blue-400 transition" />
                         </div>
                         <h4 className="font-semibold text-xs text-white line-clamp-1 group-hover:text-blue-300 transition">
