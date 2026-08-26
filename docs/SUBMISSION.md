@@ -8,7 +8,7 @@
 
 | # | Việc | Ai làm | Khi | Ghi chú |
 |---|---|---|---|---|
-| 1 | Sửa API key trong `backend/.env` thành dạng `AIza...` | **BẠN** | hôm nay | lấy tại https://aistudio.google.com/app/apikey |
+| 1 | (Chỉ khi chạy backend) Key `backend/.env` của bạn hợp lệ kể cả dạng mới `AQ...` (auth key); nộp AI Studio app KHÔNG cần key | **BẠN** | nếu chạy backend | lấy lại key tại https://aistudio.google.com/app/apikey nếu lỗi |
 | 2 | Tạo AI Studio App (dán System Prompt §3) → copy link chia sẻ | **BẠN** | hôm nay–mai | link này chính là "AI Studio Link" |
 | 3 | Quay video demo 30–60s (§4) | **BẠN** | mai | OBS/Xbox Game Bar, up YouTube **Public** |
 | 4 | Đăng LinkedIn (§5) kèm link video + hành trình | **BẠN** | trước 27/08 | |
@@ -134,7 +134,7 @@ Mẹo: quay bằng OBS/Xbox Game Bar miễn phí; up YouTube chọn **Public**; 
 
 ## 6. Checklist việc BẠN tự làm
 
-- [ ] Xác nhận API key ở `backend/.env` là dạng `AIza...` (lấy tại https://aistudio.google.com/app/apikey). Audit thấy giá trị trong `.env` có vẻ là token OAuth (`AQ.Ab8…`) chứ không phải API key chuẩn — cần kiểm tra/đổi.
+- [ ] (Chỉ khi chạy backend) Key Gemini trong `backend/.env` là hợp lệ — kể cả dạng mới `AQ...` (auth key). Chỉ sửa nếu backend báo lỗi xác thực; khi đó lấy lại key tại https://aistudio.google.com/app/apikey. Phần nộp bắt buộc (AI Studio app) KHÔNG cần key này.
 - [ ] Tạo AI Studio app (mục 3) → lấy link chia sẻ.
 - [ ] Quay video demo (mục 4) → up YouTube công khai.
 - [ ] Đăng LinkedIn (mục 5) kèm link video + "hành trình".
