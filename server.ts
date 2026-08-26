@@ -8,6 +8,7 @@ import { productRouter } from './backend/src/routes/product.routes.js';
 import { analysisRouter } from './backend/src/routes/analysis.routes.js';
 import { apiLimiter, analyzeLimiter } from './backend/src/middleware/rateLimit.js';
 import { securityHeaders } from './backend/src/middleware/securityHeaders.js';
+import { GeminiService } from './backend/src/services/gemini.service.js';
 
 async function startServer() {
   const app = express();
@@ -65,6 +66,11 @@ async function startServer() {
       ? 'Nội dung gửi lên quá lớn.'
       : 'Internal server error.';
     res.status(status).json({ success: false, error: message });
+  });
+
+  // Probe Gemini (key + model) lúc startup — best-effort, không chặn server.
+  void GeminiService.probe().catch((err) => {
+    console.warn('[BuyWise] Gemini probe failed:', err);
   });
 
   app.listen(PORT, '0.0.0.0', () => {

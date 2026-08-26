@@ -40,12 +40,72 @@ export interface NormalizedProductResult {
 
 export class GeminiService {
   private static ai: GoogleGenAI | null = null;
+  private static resolvedModel: string | null = null;
 
   private static getClient(): GoogleGenAI | null {
     if (!this.ai && env.GEMINI_API_KEY) {
       this.ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
     }
     return this.ai;
+  }
+
+  /** Model thực tế dùng để gọi Gemini (ưu tiên model đã tự-resolve lúc startup). */
+  private static getModel(): string {
+    return this.resolvedModel || env.GEMINI_MODEL;
+  }
+
+  /**
+   * Probe chạy 1 lần lúc startup (best-effort, không bao giờ làm server crash):
+   * in trạng thái API key (đã che dấu) + danh sách model khả dụng, và tự chuyển
+   * sang model "flash" hợp lệ nếu GEMINI_MODEL đang cấu hình sai tên.
+   */
+  static async probe(): Promise<void> {
+    const key = env.GEMINI_API_KEY;
+    if (!key) {
+      console.warn('[Gemini] GEMINI_API_KEY đang TRỐNG — follow-up chat & live phân tích bị tắt, chỉ chạy fallback.');
+      return;
+    }
+    const masked = key.length > 6 ? `${key.slice(0, 4)}…${key.slice(-4)}` : '(quá ngắn)';
+    console.log(`[Gemini] GEMINI_API_KEY: "${masked}" (len=${key.length})`);
+    console.log(`[Gemini] GEMINI_MODEL đang cấu hình: "${env.GEMINI_MODEL}"`);
+
+    try {
+      const client = this.getClient();
+      if (!client) return;
+      const pager: any = await client.models.list({ config: { pageSize: 100 } });
+      // Tương thích cả 2 kiểu trả về của SDK: Pager (`.page`) hoặc ListModelsResponse (`.models`).
+      const models: any[] = Array.isArray(pager?.page) ? pager.page
+        : Array.isArray(pager?.models) ? pager.models
+        : [];
+      const names: string[] = models
+        .map((m: any) => (m && m.name) || '')
+        .filter(Boolean);
+      if (!names.length) {
+        console.warn('[Gemini] models.list() trả về rỗng (thường do key sai hoặc thiếu quyền listing).');
+        return;
+      }
+      const flat = names.map((n) => n.split('/').pop() || n);
+      const configured = env.GEMINI_MODEL;
+      const has = flat.includes(configured)
+        || names.includes(configured)
+        || names.includes(`models/${configured}`);
+      if (has) {
+        console.log(`[Gemini] ✅ model "${configured}" hợp lệ — dùng luôn.`);
+      } else {
+        console.warn(`[Gemini] ⚠️ model "${configured}" KHÔNG có trong danh sách khả dụng:`);
+        console.log(`[Gemini] ${flat.join(', ')}`);
+        const pick = flat.find((n) => /gemini.*flash/i.test(n))
+          || flat.find((n) => /flash/i.test(n))
+          || flat.find((n) => /^gemini/i.test(n))
+          || flat[0];
+        if (pick) {
+          this.resolvedModel = pick;
+          console.log(`[Gemini] ✅ đã tự chuyển sang model hợp lệ: "${pick}"`);
+        }
+      }
+    } catch (err) {
+      console.warn('[Gemini] probe models.list() thất bại:', err);
+    }
   }
 
   /**
@@ -137,7 +197,7 @@ Return ONLY a valid JSON object matching this exact schema (no markdown wrap):
 
         const response = await withTimeout(
           client.models.generateContent({
-            model: env.GEMINI_MODEL,
+            model: this.getModel(),
             contents,
             config: { responseMimeType: 'application/json' as const },
           }),
@@ -261,7 +321,7 @@ Trả lời bằng tiếng Việt, NGẮN GỌN (tối đa 6–8 dòng), bám s�
 
     try {
       const response = await withTimeout(
-        client.models.generateContent({ model: env.GEMINI_MODEL, contents: prompt }),
+        client.models.generateContent({ model: this.getModel(), contents: prompt }),
         45000,
         'Gemini follow-up chat',
       );
