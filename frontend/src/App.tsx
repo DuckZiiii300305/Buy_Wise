@@ -176,8 +176,8 @@ function RadarChart({
     { key: 'reviewConfidence', label: 'Tin cậy review' },
     { key: 'priceValue', label: 'Giá trị / giá' },
   ] as const;
-  const C = 140;
-  const CY = 150;
+  const C = 180;
+  const CY = 158;
   const R = 88;
   const angles = [-90, 0, 90, 180];
   const idx = [0, 1, 2, 3];
@@ -190,7 +190,7 @@ function RadarChart({
   const poly = dataPoints.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
 
   return (
-    <svg viewBox="0 0 280 304" className="w-full max-w-[250px]" role="img" aria-label={`Biểu đồ 4 thành phần quyết định, tổng điểm ${finalScore}/100`}>
+    <svg viewBox="0 0 360 316" className="w-full max-w-[300px]" role="img" aria-label={`Biểu đồ 4 thành phần quyết định, tổng điểm ${finalScore}/100`}>
       {[0.25, 0.5, 0.75, 1].map((f) => (
         <polygon key={f} points={idx.map((i) => `${pt(i, f).x.toFixed(1)},${pt(i, f).y.toFixed(1)}`).join(' ')} fill="none" stroke="rgba(148,163,184,0.16)" strokeWidth="1" />
       ))}
@@ -212,7 +212,7 @@ function RadarChart({
         );
       })}
       {axes.map((a, i) => {
-        const p = pt(i, 1.3);
+        const p = pt(i, 1.15);
         const anchor = i === 1 ? 'start' : i === 3 ? 'end' : 'middle';
         return (
           <text key={a.key} x={p.x} y={p.y} textAnchor={anchor} dominantBaseline="middle" fill="#94a3b8" fontSize="10.5">
